@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from .settings import Settings
 from .storage import UserStorage
 from .tools import notes, food_diary
-from .handlers import router as base_router, register_common, register_tools, register_food_diary_callbacks
+from .handlers import router as base_router, register_common, register_tools, register_food_diary_callbacks, register_food_diary_text_handler
 
 
 def _setup_logging(level: str) -> None:
@@ -43,6 +43,7 @@ def run() -> None:
     register_common(base_router, settings.locale_default)
     register_tools(base_router, notes_tool, settings.locale_default)
     register_food_diary_callbacks(base_router, food_diary_tool, settings.locale_default)
+    register_food_diary_text_handler(base_router, food_diary_tool, settings.locale_default)
     dp.include_router(base_router)
 
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))

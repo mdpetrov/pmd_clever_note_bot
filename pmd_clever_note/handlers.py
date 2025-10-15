@@ -109,6 +109,62 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         text, keyboard = await food_diary_tool._show_main_menu(locale)
         await callback.message.edit_text(text, reply_markup=keyboard)
         await callback.answer()
+    
+    # Time selection handlers
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_time_"))
+    async def food_diary_time_selection(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        time_option = callback.data.replace("fd_time_", "")
+        text, keyboard = await food_diary_tool.handle_time_selection(user_id, time_option, locale)
+        
+        if keyboard:
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        else:
+            await callback.message.edit_text(text)
+        await callback.answer()
+    
+    # Cancel record creation
+    @router.callback_query(lambda c: c.data == "fd_cancel_add")
+    async def food_diary_cancel_add(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        text, keyboard = await food_diary_tool.cancel_record_creation(user_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+
+
+def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, default_locale: str) -> None:
+    """Register text message handler for food diary record creation."""
+    
+    @router.message()
+    async def handle_text_input(message: types.Message) -> None:
+        # Check if user is in record creation mode
+        user_id = message.from_user.id if message.from_user else 0
+        state = food_diary_tool._creation_states.get(user_id)
+        
+        if state:
+            locale = _get_locale(message, default_locale)
+            text = message.text or ""
+            
+            if state.step == "custom_time":
+                # Handle custom time input
+                result_text, keyboard = await food_diary_tool.handle_custom_time_input(user_id, text, locale)
+                if keyboard:
+                    await message.answer(result_text, reply_markup=keyboard)
+                else:
+                    await message.answer(result_text)
+            elif state.step == "text":
+                # This is the food record text
+                result_text, keyboard = await food_diary_tool.handle_text_input(user_id, text, locale)
+                if keyboard:
+                    await message.answer(result_text, reply_markup=keyboard)
+                else:
+                    await message.answer(result_text)
+        else:
+            # Not in record creation mode, ignore the message
+            pass
 
 
 def _get_locale_from_callback(callback: types.CallbackQuery, default_locale: str) -> str:
