@@ -4,6 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 
 from .settings import Settings
 from .storage import UserStorage
@@ -42,7 +43,7 @@ def run() -> None:
     register_tools(base_router, notes_tool, settings.locale_default)
     dp.include_router(base_router)
 
-    bot = Bot(settings.bot_token, parse_mode="HTML")
+    bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
 
     asyncio.run(_poll(bot, dp))
 
