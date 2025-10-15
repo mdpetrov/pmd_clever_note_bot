@@ -10,7 +10,7 @@ _catalogs: dict[str, Translations] = {
         "unknown_command": "Unknown command.",
         "notes_empty": "You have no notes yet.",
         "notes_saved": "Note saved.",
-        "tools": "Tools: notes",
+        "tools": "Tools: notes, food diary",
     },
     "ru": {
         "welcome": "Добро пожаловать в pmd_clever_note_bot!",
@@ -18,7 +18,7 @@ _catalogs: dict[str, Translations] = {
         "unknown_command": "Неизвестная команда.",
         "notes_empty": "У вас пока нет заметок.",
         "notes_saved": "Заметка сохранена.",
-        "tools": "Инструменты: заметки",
+        "tools": "Инструменты: заметки, дневник питания",
     },
 }
 
