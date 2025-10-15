@@ -1,0 +1,17 @@
+[project]
+name = "pmd_clever_note"
+version = "0.1.0"
+description = "Clever Note Telegram bot (async, modular, simple)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "aiogram>=3.4.1",
+  "pydantic>=2.8.0",
+  "python-dotenv>=1.0.1"
+]
+
+[project.scripts]
+pmd_clever_note = "pmd_clever_note.__main__:main"
+
+[tool.black]
+line-length = 100
