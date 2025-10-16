@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict, Optional
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -190,7 +190,7 @@ class _FoodDiaryTool(Tool):
 
     async def handle_time_selection(self, user_id: int, time_option: str, locale: str) -> tuple[str, InlineKeyboardMarkup | None]:
         """Handle datetime selection and move to text input."""
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         
         if time_option == "now":
             selected_time = now
@@ -405,7 +405,7 @@ class _FoodDiaryTool(Tool):
             action_text = "Record Updated Successfully!"
         else:
             # Create new record
-            record_id = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+            record_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             record = {
                 "id": record_id,
                 "datetime_utc": state.datetime_utc,
@@ -467,10 +467,10 @@ class _FoodDiaryTool(Tool):
 
     async def add_record(self, user_id: int, text: str, photo_id: str | None = None) -> str:
         """Legacy method - kept for compatibility."""
-        record_id = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        record_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         record = {
             "id": record_id,
-            "datetime_utc": datetime.now(datetime.UTC).isoformat() + "Z",
+            "datetime_utc": datetime.now(timezone.utc).isoformat() + "Z",
             "record": text,
             "hunger_before": None,
             "hunger_after": None,

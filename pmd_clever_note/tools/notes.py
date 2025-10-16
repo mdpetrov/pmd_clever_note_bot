@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..storage import UserStorage
@@ -21,7 +21,7 @@ class _NotesTool(Tool):
         if command == "note_add":
             if not args.strip():
                 return "Usage: /note_add <text>"
-            item: dict[str, Any] = {"ts": datetime.now(datetime.UTC).isoformat() + "Z", "text": args.strip()}
+            item: dict[str, Any] = {"ts": datetime.now(timezone.utc).isoformat() + "Z", "text": args.strip()}
             await self.storage.write_jsonl(user_id, "notes/notes.jsonl", [item])
             return t("notes_saved", locale)
         if command == "note_list":
