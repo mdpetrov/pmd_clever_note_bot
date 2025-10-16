@@ -278,8 +278,9 @@ class _FoodDiaryTool(Tool):
         """Convert UTC time string to user's timezone and format for display."""
         try:
             from zoneinfo import ZoneInfo
-            # Parse UTC time - we always store in ISO format with Z suffix
-            utc_dt = datetime.fromisoformat(utc_time_str.replace('Z', '+00:00'))
+            # Parse UTC time - remove Z suffix and assume UTC
+            clean_time = utc_time_str.replace('Z', '')
+            utc_dt = datetime.fromisoformat(clean_time).replace(tzinfo=timezone.utc)
             
             if user_timezone:
                 # Convert to user's timezone
