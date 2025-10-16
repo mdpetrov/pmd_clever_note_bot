@@ -758,8 +758,22 @@ class _FoodDiaryTool(Tool):
         if not record:
             return "❌ Record not found.", None
         
-        record_text = record.get('record', record.get('text', ''))
-        text = f"🗑️ Remove Record\n\nAre you sure you want to remove this record?\n\n\"{record_text[:50]}...\"\n\nThis action cannot be undone."
+        record_text = record.get('record', record.get('text', '')) or ''
+        drink = record.get('drink', '') or ''
+        
+        # Build preview text
+        preview_parts = []
+        if record_text.strip():
+            preview_parts.append(record_text[:50])
+        if drink.strip():
+            preview_parts.append(f"🥤 {drink[:20]}")
+        
+        if preview_parts:
+            preview_text = " + ".join(preview_parts)
+        else:
+            preview_text = "Empty record"
+        
+        text = f"🗑️ Remove Record\n\nAre you sure you want to remove this record?\n\n\"{preview_text}\"\n\nThis action cannot be undone."
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="✅ Yes, Remove", callback_data=f"fd_confirm_remove_{record_id}"))
