@@ -97,7 +97,7 @@ class _FoodDiaryTool(Tool):
             record_text = record.get('record', record.get('text', ''))
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
             formatted_time = self._format_time_for_user(record_time, user_timezone)
-            text += f"{i}. {formatted_time} - {record_text[:50]}\n"
+            text += f"{i}. 🕐 {formatted_time} - {record_text[:50]}\n"
         
         # Build pagination buttons
         builder = InlineKeyboardBuilder()
@@ -160,7 +160,7 @@ class _FoodDiaryTool(Tool):
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
             record_text = record.get('record', record.get('text', ''))
             formatted_time = self._format_time_for_user(record_time, user_timezone)
-            button_text = f"{i+1}. {formatted_time} - {record_text[:30]}"
+            button_text = f"{i+1}. 🕐 {formatted_time} - {record_text[:30]}"
             builder.add(InlineKeyboardButton(
                 text=button_text,
                 callback_data=f"fd_select_record_{record['id']}"
@@ -345,7 +345,7 @@ class _FoodDiaryTool(Tool):
             editing_record_id=None
         )
         
-        text = "🕐 Custom Time\n\nType the date and time in format:\nYYYY-MM-DD HH:MM\n\nExample: 2024-01-15 14:30"
+        text = f"🕐 Custom Time\n\nType the date and time in format:\nYYYY-MM-DD HH:MM\n\nExample: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
@@ -359,16 +359,27 @@ class _FoodDiaryTool(Tool):
             selected_time = datetime.strptime(time_text.strip(), "%Y-%m-%d %H:%M")
             user_timezone = await self._get_user_timezone(user_id)
             
+            # Convert from user's timezone to UTC for storage
+            if user_timezone:
+                from zoneinfo import ZoneInfo
+                user_tz = ZoneInfo(user_timezone)
+                # Assume the input time is in user's timezone
+                local_dt = selected_time.replace(tzinfo=user_tz)
+                utc_dt = local_dt.astimezone(timezone.utc)
+            else:
+                # If no timezone set, assume UTC
+                utc_dt = selected_time.replace(tzinfo=timezone.utc)
+            
             # Store the selected time and move to text input
             self._creation_states[user_id] = RecordCreationState(
                 user_id=user_id,
                 step="text",
-                datetime_utc=selected_time.isoformat() + "Z",
+                datetime_utc=utc_dt.isoformat() + "Z",
                 editing_record_id=None
             )
             
-            # Format time for display in user's timezone
-            formatted_time = self._format_time_for_user(selected_time.isoformat() + "Z", user_timezone)
+            # Format time for display in user's timezone (should match what they entered)
+            formatted_time = self._format_time_for_user(utc_dt.isoformat() + "Z", user_timezone)
             text = f"📝 What did you eat?\n\n⏰ Time: {formatted_time}\n\nType your food record (any text):"
             
             builder = InlineKeyboardBuilder()
@@ -413,20 +424,21 @@ class _FoodDiaryTool(Tool):
     async def _show_hunger_scale(self, user_id: int, hunger_type: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Show 10-level hunger scale with buttons."""
         hunger_labels = {
-            1: "1 - Extremely hungry",
-            2: "2 - Very hungry", 
-            3: "3 - Hungry",
-            4: "4 - Slightly hungry",
-            5: "5 - Neutral",
-            6: "6 - Slightly satisfied",
-            7: "7 - Satisfied",
-            8: "8 - Very satisfied",
-            9: "9 - Full",
-            10: "10 - Extremely full"
+            1: "😵 1 - Extremely hungry",
+            2: "😫 2 - Very hungry", 
+            3: "😖 3 - Hungry",
+            4: "😐 4 - Slightly hungry",
+            5: "😌 5 - Neutral",
+            6: "🙂 6 - Slightly satisfied",
+            7: "😊 7 - Satisfied",
+            8: "😄 8 - Very satisfied",
+            9: "🤤 9 - Full",
+            10: "🤢 10 - Extremely full"
         }
         
         step_name = "before" if hunger_type == "before" else "after"
-        text = f"🍽️ Hunger Level {step_name.title()}\n\nHow hungry were you {step_name} eating?\n\nSelect your hunger level:"
+        step_emoji = "🍽️" if hunger_type == "before" else "😋"
+        text = f"{step_emoji} Hunger Level {step_name.title()}\n\nHow hungry were you {step_name} eating?\n\nSelect your hunger level:"
         
         builder = InlineKeyboardBuilder()
         
@@ -549,7 +561,7 @@ class _FoodDiaryTool(Tool):
         # Format time for display in user's timezone
         user_timezone = await self._get_user_timezone(user_id)
         formatted_time = self._format_time_for_user(state.datetime_utc, user_timezone)
-        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {formatted_time}\n\nWhat would you like to do next?"
+        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n🕐 {formatted_time}\n\nWhat would you like to do next?"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="➕ Add Another Record", callback_data="fd_add"))
@@ -618,7 +630,7 @@ class _FoodDiaryTool(Tool):
         formatted_time = self._format_time_for_user(record_time, user_timezone)
         
         text = "📝 Record Details\n\n"
-        text += f"⏰ Time: {formatted_time}\n"
+        text += f"🕐 Time: {formatted_time}\n"
         text += f"🍽️ Food: {record_text}\n"
         
         if hunger_before is not None:
