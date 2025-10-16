@@ -212,7 +212,11 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
                 editing_record_id=state.editing_record_id
             )
         
-        text = f"📝 Edit Food Description\n\nCurrent: {state.record_text if state else ''}\n\nType new description or skip:"
+        # Get user timezone for time display
+        user_timezone = await food_diary_tool._get_user_timezone(user_id)
+        formatted_time = food_diary_tool._format_time_for_user(state.datetime_utc, user_timezone) if state else ''
+        
+        text = f"📝 Edit Food Description\n\n⏰ Time: {formatted_time}\nCurrent: {state.record_text if state else ''}\n\nType new description or skip:"
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
         builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_edit_back"))
