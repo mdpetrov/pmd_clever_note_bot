@@ -542,7 +542,13 @@ class _FoodDiaryTool(Tool):
 
     async def _show_drink_input(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Show drink input prompt."""
-        text = "🥤 What did you drink?\n\nType what you drank or skip:"
+        state = self._creation_states.get(user_id)
+        
+        # Show current drink value if editing
+        if state and state.editing_record_id and state.drink:
+            text = f"🥤 What did you drink?\n\n💧 Current: {state.drink}\n\nType new drink or skip to keep current:"
+        else:
+            text = "🥤 What did you drink?\n\nType what you drank or skip:"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="⏭️ Skip Drink", callback_data="fd_skip_drink"))
