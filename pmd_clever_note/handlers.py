@@ -218,6 +218,28 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
         await callback.answer()
+    
+    # Hunger selection handlers
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_hunger_"))
+    async def food_diary_hunger_selection(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        parts = callback.data.split("_")
+        if len(parts) >= 4:
+            hunger_type = parts[2]  # "before" or "after"
+            level = parts[3]  # level number or "skip"
+            
+            if level == "back":
+                text, keyboard = await food_diary_tool.handle_hunger_back(user_id, locale)
+            else:
+                text, keyboard = await food_diary_tool.handle_hunger_selection(user_id, hunger_type, level, locale)
+            
+            if keyboard:
+                await callback.message.edit_text(text, reply_markup=keyboard)
+            else:
+                await callback.message.edit_text(text)
+        await callback.answer()
 
 
 def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, default_locale: str) -> None:

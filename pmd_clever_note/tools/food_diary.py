@@ -261,7 +261,7 @@ class _FoodDiaryTool(Tool):
             return "❌ Invalid time format. Please use YYYY-MM-DD HH:MM\n\nExample: 2024-01-15 14:30", None
 
     async def handle_text_input(self, user_id: int, text: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
-        """Handle text input and save the record."""
+        """Handle text input and move to hunger before selection."""
         if not text.strip():
             return "❌ Please enter what you ate.", None
         
@@ -277,14 +277,110 @@ class _FoodDiaryTool(Tool):
         if not state or not state.datetime_utc:
             return "❌ Error: No time selected. Please start over.", None
         
+        # Update state with text and move to hunger before
+        self._creation_states[user_id] = RecordCreationState(
+            user_id=user_id,
+            step="hunger_before",
+            datetime_utc=state.datetime_utc,
+            record_text=text.strip(),
+            hunger_before=None,
+            hunger_after=None
+        )
+        
+        # Show hunger before selection
+        return await self._show_hunger_scale(user_id, "before", locale)
+
+    async def _show_hunger_scale(self, user_id: int, hunger_type: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Show 10-level hunger scale with buttons."""
+        hunger_labels = {
+            1: "1 - Extremely hungry",
+            2: "2 - Very hungry", 
+            3: "3 - Hungry",
+            4: "4 - Slightly hungry",
+            5: "5 - Neutral",
+            6: "6 - Slightly satisfied",
+            7: "7 - Satisfied",
+            8: "8 - Very satisfied",
+            9: "9 - Full",
+            10: "10 - Extremely full"
+        }
+        
+        step_name = "before" if hunger_type == "before" else "after"
+        text = f"🍽️ Hunger Level {step_name.title()}\n\nHow hungry were you {step_name} eating?\n\nSelect your hunger level:"
+        
+        builder = InlineKeyboardBuilder()
+        
+        # Add hunger level buttons (2 per row)
+        for level in range(1, 11):
+            builder.add(InlineKeyboardButton(
+                text=hunger_labels[level],
+                callback_data=f"fd_hunger_{hunger_type}_{level}"
+            ))
+        
+        # Add Skip and Back buttons
+        builder.add(InlineKeyboardButton(text="⏭️ Skip", callback_data=f"fd_hunger_{hunger_type}_skip"))
+        builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_hunger_back"))
+        
+        builder.adjust(2, 2, 2, 2, 2, 1, 1)  # 2 per row for hunger levels, then 1 each for skip/back
+        return text, builder.as_markup()
+
+    async def handle_hunger_selection(self, user_id: int, hunger_type: str, level: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Handle hunger level selection."""
+        state = self._creation_states.get(user_id)
+        if not state:
+            return "❌ Error: No active record creation.", None
+        
+        if level == "skip":
+            hunger_value = None
+        else:
+            try:
+                hunger_value = int(level)
+            except ValueError:
+                return "❌ Invalid hunger level.", None
+        
+        # Update state with hunger level
+        if hunger_type == "before":
+            new_state = RecordCreationState(
+                user_id=user_id,
+                step="hunger_after",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=hunger_value,
+                hunger_after=None
+            )
+        else:  # after
+            new_state = RecordCreationState(
+                user_id=user_id,
+                step="complete",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=state.hunger_before,
+                hunger_after=hunger_value
+            )
+        
+        self._creation_states[user_id] = new_state
+        
+        if hunger_type == "before":
+            # Move to hunger after
+            return await self._show_hunger_scale(user_id, "after", locale)
+        else:
+            # Save the complete record
+            return await self._save_complete_record(user_id, locale)
+
+    async def _save_complete_record(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Save the complete record and show confirmation."""
+        state = self._creation_states.get(user_id)
+        if not state:
+            return "❌ Error: No active record creation.", None
+        
         # Save the record
         record_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         record = {
             "id": record_id,
             "datetime_utc": state.datetime_utc,
-            "record": text.strip(),
-            "hunger_before": None,
-            "hunger_after": None,
+            "record": state.record_text,
+            "hunger_before": state.hunger_before,
+            "hunger_after": state.hunger_after,
             "picture": None
         }
         
@@ -294,8 +390,42 @@ class _FoodDiaryTool(Tool):
         if user_id in self._creation_states:
             del self._creation_states[user_id]
         
-        # Return to main menu
-        return await self._show_main_menu(locale)
+        # Show confirmation message
+        hunger_info = ""
+        if state.hunger_before is not None and state.hunger_after is not None:
+            hunger_info = f"\n🍽️ Hunger: {state.hunger_before}/10 → {state.hunger_after}/10"
+        elif state.hunger_before is not None:
+            hunger_info = f"\n🍽️ Hunger Before: {state.hunger_before}/10"
+        elif state.hunger_after is not None:
+            hunger_info = f"\n🍽️ Hunger After: {state.hunger_after}/10"
+        
+        text = f"✅ Record Added Successfully!\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {state.datetime_utc[:16]}\n\nWhat would you like to do next?"
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="➕ Add Another Record", callback_data="fd_add"))
+        builder.add(InlineKeyboardButton(text="📝 View Records", callback_data="fd_records"))
+        builder.add(InlineKeyboardButton(text="🏠 Main Menu", callback_data="fd_main"))
+        builder.adjust(1, 1, 1)
+        
+        return text, builder.as_markup()
+
+    async def handle_hunger_back(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Handle back navigation from hunger selection."""
+        state = self._creation_states.get(user_id)
+        if not state:
+            return "❌ Error: No active record creation.", None
+        
+        if state.step == "hunger_before":
+            # Go back to text input
+            text = f"📝 What did you eat?\n\n⏰ Time: {state.datetime_utc[:16]}\n\nType your food record (any text):"
+            builder = InlineKeyboardBuilder()
+            builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
+            return text, builder.as_markup()
+        elif state.step == "hunger_after":
+            # Go back to hunger before
+            return await self._show_hunger_scale(user_id, "before", locale)
+        else:
+            return "❌ Error: Invalid back navigation.", None
 
     async def cancel_record_creation(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Cancel record creation and return to main menu."""
