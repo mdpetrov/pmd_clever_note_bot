@@ -262,6 +262,31 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         locale = _get_locale_from_callback(callback, default_locale)
         user_id = callback.from_user.id if callback.from_user else 0
         
+        # Move to drink input
+        state = food_diary_tool._creation_states.get(user_id)
+        if state:
+            food_diary_tool._creation_states[user_id] = RecordCreationState(
+                user_id=user_id,
+                step="drink",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=None,
+                hunger_after=None,
+                drink=state.drink,
+                editing_record_id=state.editing_record_id
+            )
+        
+        # Show drink input
+        text, keyboard = await food_diary_tool._show_drink_input(user_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Skip drink
+    @router.callback_query(lambda c: c.data == "fd_skip_drink")
+    async def food_diary_skip_drink(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
         # Move to hunger before selection
         state = food_diary_tool._creation_states.get(user_id)
         if state:
@@ -272,12 +297,46 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
                 record_text=state.record_text,
                 hunger_before=None,
                 hunger_after=None,
+                drink=state.drink,
                 editing_record_id=state.editing_record_id
             )
         
         # Show hunger before selection
         text, keyboard = await food_diary_tool._show_hunger_scale(user_id, "before", locale)
         await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Back to text input
+    @router.callback_query(lambda c: c.data == "fd_text_back")
+    async def food_diary_text_back(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        # Move back to text input
+        state = food_diary_tool._creation_states.get(user_id)
+        if state:
+            food_diary_tool._creation_states[user_id] = RecordCreationState(
+                user_id=user_id,
+                step="text",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=None,
+                hunger_after=None,
+                drink=state.drink,
+                editing_record_id=state.editing_record_id
+            )
+        
+        # Show text input prompt
+        user_timezone = await food_diary_tool._get_user_timezone(user_id)
+        formatted_time = food_diary_tool._format_time_for_user(state.datetime_utc, user_timezone)
+        text = f"📝 What did you eat?\n\n⏰ Time: {formatted_time}\n\nType your food record (any text):"
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
+        builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
+        builder.adjust(1)
+        
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
         await callback.answer()
     
     # Back during edit
@@ -347,6 +406,13 @@ def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, defa
             elif state.step == "text":
                 # This is the food record text
                 result_text, keyboard = await food_diary_tool.handle_text_input(user_id, text, locale)
+                if keyboard:
+                    await message.answer(result_text, reply_markup=keyboard)
+                else:
+                    await message.answer(result_text)
+            elif state.step == "drink":
+                # Handle drink input
+                result_text, keyboard = await food_diary_tool.handle_drink_input(user_id, text, locale)
                 if keyboard:
                     await message.answer(result_text, reply_markup=keyboard)
                 else:

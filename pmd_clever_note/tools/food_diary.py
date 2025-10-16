@@ -25,11 +25,12 @@ class FoodRecord:
 class RecordCreationState:
     """Tracks the state of record creation process."""
     user_id: int
-    step: str  # 'datetime', 'text', 'hunger_before', 'hunger_after'
+    step: str  # 'datetime', 'text', 'hunger_before', 'hunger_after', 'drink'
     datetime_utc: Optional[str] = None
     record_text: Optional[str] = None
     hunger_before: Optional[int] = None
     hunger_after: Optional[int] = None
+    drink: Optional[str] = None
     editing_record_id: Optional[str] = None  # ID of record being edited, None for new records
 
 
@@ -332,7 +333,9 @@ class _FoodDiaryTool(Tool):
         text = f"📝 What did you eat?\n\n⏰ Time: {formatted_time}\n\nType your food record (any text):"
         
         builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
         builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
+        builder.adjust(1)
         
         return text, builder.as_markup()
 
@@ -383,7 +386,9 @@ class _FoodDiaryTool(Tool):
             text = f"📝 What did you eat?\n\n⏰ Time: {formatted_time}\n\nType your food record (any text):"
             
             builder = InlineKeyboardBuilder()
+            builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
             builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
+            builder.adjust(1)
             
             return text, builder.as_markup()
             
@@ -407,19 +412,20 @@ class _FoodDiaryTool(Tool):
         if not state or not state.datetime_utc:
             return "❌ Error: No time selected. Please start over.", None
         
-        # Update state with text and move to hunger before
+        # Update state with text and move to drink input
         self._creation_states[user_id] = RecordCreationState(
             user_id=user_id,
-            step="hunger_before",
+            step="drink",
             datetime_utc=state.datetime_utc,
             record_text=text.strip(),
             hunger_before=None,
             hunger_after=None,
+            drink=state.drink,
             editing_record_id=state.editing_record_id
         )
         
-        # Show hunger before selection
-        return await self._show_hunger_scale(user_id, "before", locale)
+        # Show drink input
+        return await self._show_drink_input(user_id, locale)
 
     async def _show_hunger_scale(self, user_id: int, hunger_type: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Show 10-level hunger scale with buttons."""
@@ -484,7 +490,7 @@ class _FoodDiaryTool(Tool):
         else:  # after
             new_state = RecordCreationState(
                 user_id=user_id,
-                step="complete",
+                step="drink",
                 datetime_utc=state.datetime_utc,
                 record_text=state.record_text,
                 hunger_before=state.hunger_before,
@@ -498,8 +504,40 @@ class _FoodDiaryTool(Tool):
             # Move to hunger after
             return await self._show_hunger_scale(user_id, "after", locale)
         else:
-            # Save the complete record
-            return await self._save_complete_record(user_id, locale)
+            # Move to drink input
+            return await self._show_drink_input(user_id, locale)
+
+    async def _show_drink_input(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Show drink input prompt."""
+        text = "🥤 What did you drink?\n\nType what you drank or skip:"
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="⏭️ Skip Drink", callback_data="fd_skip_drink"))
+        builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_text_back"))
+        builder.adjust(1)
+        
+        return text, builder.as_markup()
+
+    async def handle_drink_input(self, user_id: int, drink_text: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Handle drink text input and move to hunger before selection."""
+        state = self._creation_states.get(user_id)
+        if not state:
+            return "❌ Error: No active record creation.", None
+        
+        # Update state with drink text and move to hunger before
+        self._creation_states[user_id] = RecordCreationState(
+            user_id=user_id,
+            step="hunger_before",
+            datetime_utc=state.datetime_utc,
+            record_text=state.record_text,
+            hunger_before=None,
+            hunger_after=None,
+            drink=drink_text.strip(),
+            editing_record_id=state.editing_record_id
+        )
+        
+        # Show hunger before selection
+        return await self._show_hunger_scale(user_id, "before", locale)
 
     async def _save_complete_record(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Save the complete record and show confirmation."""
@@ -522,7 +560,8 @@ class _FoodDiaryTool(Tool):
                 "datetime_utc": state.datetime_utc,
                 "record": state.record_text,
                 "hunger_before": state.hunger_before,
-                "hunger_after": state.hunger_after
+                "hunger_after": state.hunger_after,
+                "drink": state.drink
             })
             
             # Clear the file and rewrite all records
@@ -539,6 +578,7 @@ class _FoodDiaryTool(Tool):
                 "record": state.record_text,
                 "hunger_before": state.hunger_before,
                 "hunger_after": state.hunger_after,
+                "drink": state.drink,
                 "picture": None
             }
             
@@ -558,10 +598,12 @@ class _FoodDiaryTool(Tool):
         elif state.hunger_after is not None:
             hunger_info = f"\n🍽️ Hunger After: {state.hunger_after}/10"
         
+        drink_info = f"\n🥤 Drink: {state.drink}" if state.drink else ""
+        
         # Format time for display in user's timezone
         user_timezone = await self._get_user_timezone(user_id)
         formatted_time = self._format_time_for_user(state.datetime_utc, user_timezone)
-        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n🕐 {formatted_time}\n\nWhat would you like to do next?"
+        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}{drink_info}\n\n🕐 {formatted_time}\n\nWhat would you like to do next?"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="➕ Add Another Record", callback_data="fd_add"))
@@ -627,6 +669,7 @@ class _FoodDiaryTool(Tool):
         record_text = record.get('record', record.get('text', ''))
         hunger_before = record.get('hunger_before')
         hunger_after = record.get('hunger_after')
+        drink = record.get('drink')
         formatted_time = self._format_time_for_user(record_time, user_timezone)
         
         text = "📝 Record Details\n\n"
@@ -637,6 +680,8 @@ class _FoodDiaryTool(Tool):
             text += f"🍽️ Hunger Before: {hunger_before}/10\n"
         if hunger_after is not None:
             text += f"🍽️ Hunger After: {hunger_after}/10\n"
+        if drink:
+            text += f"🥤 Drink: {drink}\n"
         
         builder = InlineKeyboardBuilder()
         
@@ -709,6 +754,7 @@ class _FoodDiaryTool(Tool):
             record_text=record.get('record', record.get('text', '')),
             hunger_before=record.get('hunger_before'),
             hunger_after=record.get('hunger_after'),
+            drink=record.get('drink'),
             editing_record_id=record_id
         )
         
