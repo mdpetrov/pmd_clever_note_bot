@@ -6,6 +6,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from .i18n import t
 from .tools.base import Tool
+from .tools.food_diary import RecordCreationState
 
 router = Router()
 
@@ -132,6 +133,90 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         user_id = callback.from_user.id if callback.from_user else 0
         text, keyboard = await food_diary_tool.cancel_record_creation(user_id, locale)
         await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Edit records pagination
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_edit_records_"))
+    async def food_diary_edit_pagination(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        try:
+            offset = int(callback.data.split("_")[-1])
+        except (ValueError, IndexError):
+            offset = 0
+            
+        text, keyboard = await food_diary_tool._edit_records_menu(user_id, locale, offset=offset)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Record selection
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_select_record_"))
+    async def food_diary_select_record(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        record_id = callback.data.replace("fd_select_record_", "")
+        text, keyboard = await food_diary_tool._show_record_details(user_id, record_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Edit record
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_edit_record_"))
+    async def food_diary_edit_record(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        record_id = callback.data.replace("fd_edit_record_", "")
+        text, keyboard = await food_diary_tool._start_edit_record(user_id, record_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Remove record confirmation
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_remove_record_"))
+    async def food_diary_remove_record(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        record_id = callback.data.replace("fd_remove_record_", "")
+        text, keyboard = await food_diary_tool._show_remove_confirmation(user_id, record_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Confirm removal
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_confirm_remove_"))
+    async def food_diary_confirm_remove(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        record_id = callback.data.replace("fd_confirm_remove_", "")
+        text, keyboard = await food_diary_tool._remove_record(user_id, record_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Skip time during edit
+    @router.callback_query(lambda c: c.data == "fd_skip_time")
+    async def food_diary_skip_time(callback: types.CallbackQuery) -> None:
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        # Move to text editing
+        state = food_diary_tool._creation_states.get(user_id)
+        if state:
+            food_diary_tool._creation_states[user_id] = RecordCreationState(
+                user_id=user_id,
+                step="text",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=state.hunger_before,
+                hunger_after=state.hunger_after
+            )
+        
+        text = f"📝 Edit Food Description\n\nCurrent: {state.record_text if state else ''}\n\nType new description or skip:"
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
+        builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_edit_back"))
+        
+        await callback.message.edit_text(text, reply_markup=builder.as_markup())
         await callback.answer()
 
 
