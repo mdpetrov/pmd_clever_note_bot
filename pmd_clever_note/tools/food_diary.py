@@ -517,6 +517,7 @@ class _FoodDiaryTool(Tool):
                 record_text=state.record_text,
                 hunger_before=hunger_value,
                 hunger_after=None,
+                drink=state.drink,
                 editing_record_id=state.editing_record_id
             )
         else:  # after
@@ -678,21 +679,6 @@ class _FoodDiaryTool(Tool):
             del self._creation_states[user_id]
         return await self._show_main_menu(locale)
 
-    async def add_record(self, user_id: int, text: str, photo_id: str | None = None) -> str:
-        """Legacy method - kept for compatibility."""
-        record_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        record = {
-            "id": record_id,
-            "datetime_utc": datetime.now(timezone.utc).isoformat() + "Z",
-            "record": text,
-            "hunger_before": None,
-            "hunger_after": None,
-            "drink": None,
-            "picture": photo_id
-        }
-        
-        await self.storage.write_jsonl(user_id, "food_diary/records.jsonl", [record])
-        return f"✅ Record added: {text[:30]}..."
 
 
     async def _show_record_details(self, user_id: int, record_id: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
