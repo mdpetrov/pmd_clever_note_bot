@@ -219,6 +219,7 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
                 record_text=state.record_text,
                 hunger_before=state.hunger_before,
                 hunger_after=state.hunger_after,
+                drink=state.drink,
                 editing_record_id=state.editing_record_id
             )
         

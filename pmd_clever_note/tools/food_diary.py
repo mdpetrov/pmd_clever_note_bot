@@ -681,6 +681,7 @@ class _FoodDiaryTool(Tool):
             "record": text,
             "hunger_before": None,
             "hunger_after": None,
+            "drink": None,
             "picture": photo_id
         }
         
