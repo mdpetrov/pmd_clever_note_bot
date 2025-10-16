@@ -542,7 +542,10 @@ class _FoodDiaryTool(Tool):
         elif state.hunger_after is not None:
             hunger_info = f"\n🍽️ Hunger After: {state.hunger_after}/10"
         
-        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {state.datetime_utc[:16]}\n\nWhat would you like to do next?"
+        # Format time for display in user's timezone
+        user_timezone = await self._get_user_timezone(user_id)
+        formatted_time = self._format_time_for_user(state.datetime_utc, user_timezone)
+        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {formatted_time}\n\nWhat would you like to do next?"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="➕ Add Another Record", callback_data="fd_add"))
