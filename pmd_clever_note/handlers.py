@@ -51,8 +51,17 @@ def register_tools(router: Router, tool: Tool, default_locale: str) -> None:
 def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default_locale: str) -> None:
     """Register callback handlers for food diary tool."""
     
+    def _set_user_info_if_needed(callback: types.CallbackQuery) -> None:
+        """Set user info in storage if not already set."""
+        if callback.from_user:
+            user_id = callback.from_user.id
+            username = callback.from_user.username
+            first_name = callback.from_user.first_name
+            food_diary_tool.storage.set_user_info(user_id, username, first_name)
+    
     @router.callback_query(lambda c: c.data == "food_diary")
     async def food_diary_main(callback: types.CallbackQuery) -> None:
+        _set_user_info_if_needed(callback)
         locale = _get_locale_from_callback(callback, default_locale)
         text, keyboard = await food_diary_tool._show_main_menu(locale)
         await callback.message.edit_text(text, reply_markup=keyboard)
@@ -60,6 +69,7 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
     
     @router.callback_query(lambda c: c.data == "fd_records")
     async def food_diary_records(callback: types.CallbackQuery) -> None:
+        _set_user_info_if_needed(callback)
         locale = _get_locale_from_callback(callback, default_locale)
         user_id = callback.from_user.id if callback.from_user else 0
         text, keyboard = await food_diary_tool._show_records(user_id, locale, offset=0)
@@ -308,10 +318,19 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
 def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, default_locale: str) -> None:
     """Register text message handler for food diary record creation."""
     
+    def _set_user_info_if_needed(message: types.Message) -> None:
+        """Set user info in storage if not already set."""
+        if message.from_user:
+            user_id = message.from_user.id
+            username = message.from_user.username
+            first_name = message.from_user.first_name
+            food_diary_tool.storage.set_user_info(user_id, username, first_name)
+    
     @router.message()
     async def handle_text_input(message: types.Message) -> None:
         # Check if user is in record creation mode
         user_id = message.from_user.id if message.from_user else 0
+        _set_user_info_if_needed(message)
         state = food_diary_tool._creation_states.get(user_id)
         
         if state:

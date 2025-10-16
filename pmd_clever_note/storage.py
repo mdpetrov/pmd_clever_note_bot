@@ -13,11 +13,32 @@ class UserStorage:
     def __init__(self, base: Path) -> None:
         self.base = base
         (self.base / "users").mkdir(parents=True, exist_ok=True)
+        # Store user info for folder naming
+        self._user_info: dict[int, dict] = {}
 
     def _u(self, user_id: int) -> Path:
-        d = self.base / "users" / str(user_id)
+        user_info = self._user_info.get(user_id, {})
+        username = user_info.get('username')
+        first_name = user_info.get('first_name')
+        
+        # Use username if available, otherwise first_name, otherwise user_id
+        if username:
+            folder_name = f"{username}_{user_id}"
+        elif first_name:
+            folder_name = f"{first_name}_{user_id}"
+        else:
+            folder_name = str(user_id)
+        
+        d = self.base / "users" / folder_name
         d.mkdir(parents=True, exist_ok=True)
         return d
+    
+    def set_user_info(self, user_id: int, username: str = None, first_name: str = None) -> None:
+        """Set user information for folder naming."""
+        self._user_info[user_id] = {
+            'username': username,
+            'first_name': first_name
+        }
 
     @log_if_slow()
     async def write_jsonl(self, user_id: int, rel: str, items: Iterable[dict[str, Any]]) -> None:
