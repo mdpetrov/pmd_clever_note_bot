@@ -76,6 +76,7 @@ class _FoodDiaryTool(Tool):
     async def _show_records(self, user_id: int, locale: str, offset: int = 0) -> tuple[str, InlineKeyboardMarkup]:
         """Show 5 records with pagination buttons."""
         records = await self._get_records(user_id)
+        user_timezone = await self._get_user_timezone(user_id)
         
         if not records:
             text = "📝 No food records yet.\n\nAdd your first record!"
@@ -95,7 +96,8 @@ class _FoodDiaryTool(Tool):
             # Use new record structure
             record_text = record.get('record', record.get('text', ''))
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
-            text += f"{i}. {record_time[:16]} - {record_text[:50]}\n"
+            formatted_time = self._format_time_for_user(record_time, user_timezone)
+            text += f"{i}. {formatted_time} - {record_text[:50]}\n"
         
         # Build pagination buttons
         builder = InlineKeyboardBuilder()
@@ -136,6 +138,7 @@ class _FoodDiaryTool(Tool):
     async def _edit_records_menu(self, user_id: int, locale: str, offset: int = 0) -> tuple[str, InlineKeyboardMarkup]:
         """Show edit records menu with pagination."""
         records = await self._get_records(user_id)
+        user_timezone = await self._get_user_timezone(user_id)
         
         if not records:
             text = "📝 No records to edit."
@@ -156,7 +159,8 @@ class _FoodDiaryTool(Tool):
         for i, record in enumerate(display_records, start=start_idx):
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
             record_text = record.get('record', record.get('text', ''))
-            button_text = f"{i+1}. {record_time[:16]} - {record_text[:30]}"
+            formatted_time = self._format_time_for_user(record_time, user_timezone)
+            button_text = f"{i+1}. {formatted_time} - {record_text[:30]}"
             builder.add(InlineKeyboardButton(
                 text=button_text,
                 callback_data=f"fd_select_record_{record['id']}"
@@ -177,16 +181,118 @@ class _FoodDiaryTool(Tool):
 
     async def _show_settings(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Show food diary settings."""
-        text = "⚙️ Food Diary Settings\n\nConfigure your food diary preferences."
+        user_timezone = await self._get_user_timezone(user_id)
+        timezone_display = user_timezone if user_timezone else "UTC"
+        
+        text = f"⚙️ Food Diary Settings\n\nCurrent timezone: {timezone_display}\n\nConfigure your preferences:"
         
         builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="🌍 Timezone", callback_data="fd_timezone_settings"))
         builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_main"))
+        builder.adjust(1)
         
         return text, builder.as_markup()
 
     async def _get_records(self, user_id: int) -> List[dict[str, Any]]:
         """Get all food records for a user."""
         return await self.storage.read_jsonl(user_id, "food_diary/records.jsonl")
+    
+    async def _get_user_timezone(self, user_id: int) -> str | None:
+        """Get user's timezone setting."""
+        try:
+            timezone_str = await self.storage.read_text(user_id, "food_diary/timezone.txt")
+            return timezone_str.strip() if timezone_str.strip() else None
+        except:
+            return None
+    
+    async def _set_user_timezone(self, user_id: int, timezone_str: str) -> None:
+        """Set user's timezone."""
+        await self.storage.write_text(user_id, "food_diary/timezone.txt", timezone_str)
+    
+    async def _show_timezone_settings(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Show timezone selection menu."""
+        current_timezone = await self._get_user_timezone(user_id)
+        current_display = current_timezone if current_timezone else "UTC"
+        
+        text = f"🌍 Timezone Settings\n\nCurrent timezone: {current_display}\n\nSelect your timezone:"
+        
+        # Common timezones
+        timezones = [
+            ("UTC", "UTC"),
+            ("Europe/London", "London (GMT/BST)"),
+            ("Europe/Paris", "Paris (CET/CEST)"),
+            ("Europe/Berlin", "Berlin (CET/CEST)"),
+            ("Europe/Moscow", "Moscow (MSK)"),
+            ("America/New_York", "New York (EST/EDT)"),
+            ("America/Chicago", "Chicago (CST/CDT)"),
+            ("America/Denver", "Denver (MST/MDT)"),
+            ("America/Los_Angeles", "Los Angeles (PST/PDT)"),
+            ("Asia/Tokyo", "Tokyo (JST)"),
+            ("Asia/Shanghai", "Shanghai (CST)"),
+            ("Asia/Dubai", "Dubai (GST)"),
+            ("Australia/Sydney", "Sydney (AEST/AEDT)"),
+        ]
+        
+        builder = InlineKeyboardBuilder()
+        
+        for tz_id, tz_display in timezones:
+            builder.add(InlineKeyboardButton(
+                text=f"{'✓' if tz_id == current_timezone else '○'} {tz_display}",
+                callback_data=f"fd_set_timezone_{tz_id}"
+            ))
+        
+        builder.add(InlineKeyboardButton(text="🔙 Back to Settings", callback_data="fd_settings"))
+        builder.adjust(1)
+        
+        return text, builder.as_markup()
+    
+    async def _set_timezone(self, user_id: int, timezone_str: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+        """Set user timezone and show confirmation."""
+        await self._set_user_timezone(user_id, timezone_str)
+        
+        # Get timezone display name
+        timezone_display = {
+            "UTC": "UTC",
+            "Europe/London": "London (GMT/BST)",
+            "Europe/Paris": "Paris (CET/CEST)",
+            "Europe/Berlin": "Berlin (CET/CEST)",
+            "Europe/Moscow": "Moscow (MSK)",
+            "America/New_York": "New York (EST/EDT)",
+            "America/Chicago": "Chicago (CST/CDT)",
+            "America/Denver": "Denver (MST/MDT)",
+            "America/Los_Angeles": "Los Angeles (PST/PDT)",
+            "Asia/Tokyo": "Tokyo (JST)",
+            "Asia/Shanghai": "Shanghai (CST)",
+            "Asia/Dubai": "Dubai (GST)",
+            "Australia/Sydney": "Sydney (AEST/AEDT)",
+        }.get(timezone_str, timezone_str)
+        
+        text = f"✅ Timezone Updated!\n\nYour timezone is now set to: {timezone_display}\n\nAll times will be displayed in your local timezone."
+        
+        builder = InlineKeyboardBuilder()
+        builder.add(InlineKeyboardButton(text="🔙 Back to Settings", callback_data="fd_settings"))
+        builder.adjust(1)
+        
+        return text, builder.as_markup()
+    
+    def _format_time_for_user(self, utc_time_str: str, user_timezone: str | None) -> str:
+        """Convert UTC time string to user's timezone and format for display."""
+        try:
+            from zoneinfo import ZoneInfo
+            # Parse UTC time
+            utc_dt = datetime.fromisoformat(utc_time_str.replace('Z', '+00:00'))
+            
+            if user_timezone:
+                # Convert to user's timezone
+                user_tz = ZoneInfo(user_timezone)
+                local_dt = utc_dt.astimezone(user_tz)
+                return local_dt.strftime('%Y-%m-%d %H:%M')
+            else:
+                # Default to UTC if no timezone set
+                return utc_dt.strftime('%Y-%m-%d %H:%M UTC')
+        except Exception:
+            # Fallback to original string if conversion fails
+            return utc_time_str[:16]
 
     async def handle_time_selection(self, user_id: int, time_option: str, locale: str) -> tuple[str, InlineKeyboardMarkup | None]:
         """Handle datetime selection and move to text input."""
@@ -485,6 +591,7 @@ class _FoodDiaryTool(Tool):
         """Show individual record with edit/remove options."""
         records = await self._get_records(user_id)
         record = next((r for r in records if r['id'] == record_id), None)
+        user_timezone = await self._get_user_timezone(user_id)
         
         if not record:
             return "❌ Record not found.", None
@@ -494,9 +601,10 @@ class _FoodDiaryTool(Tool):
         record_text = record.get('record', record.get('text', ''))
         hunger_before = record.get('hunger_before')
         hunger_after = record.get('hunger_after')
+        formatted_time = self._format_time_for_user(record_time, user_timezone)
         
         text = "📝 Record Details\n\n"
-        text += f"⏰ Time: {record_time[:16]}\n"
+        text += f"⏰ Time: {formatted_time}\n"
         text += f"🍽️ Food: {record_text}\n"
         
         if hunger_before is not None:

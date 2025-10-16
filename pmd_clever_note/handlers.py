@@ -279,6 +279,26 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         text, keyboard = await food_diary_tool._edit_records_menu(user_id, locale, offset=0)
         await callback.message.edit_text(text, reply_markup=keyboard)
         await callback.answer()
+    
+    # Timezone settings
+    @router.callback_query(lambda c: c.data == "fd_timezone_settings")
+    async def food_diary_timezone_settings(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        text, keyboard = await food_diary_tool._show_timezone_settings(user_id, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Set timezone
+    @router.callback_query(lambda c: c.data and c.data.startswith("fd_set_timezone_"))
+    async def food_diary_set_timezone(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        timezone_str = callback.data.replace("fd_set_timezone_", "")
+        text, keyboard = await food_diary_tool._set_timezone(user_id, timezone_str, locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
 
 
 def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, default_locale: str) -> None:
