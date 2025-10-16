@@ -95,10 +95,26 @@ class _FoodDiaryTool(Tool):
         text = f"📝 Food Records ({start_idx + 1}-{end_idx} of {len(records)})\n\n"
         for i, record in enumerate(display_records, start=start_idx + 1):
             # Use new record structure
-            record_text = record.get('record', record.get('text', ''))
+            record_text = record.get('record', record.get('text', '')) or ''
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
+            drink = record.get('drink', '') or ''
             formatted_time = self._format_time_for_user(record_time, user_timezone)
-            text += f"{i}. 🕐 {formatted_time} - {record_text[:50]}\n"
+            
+            # Build display text based on what's available
+            display_parts = []
+            
+            if record_text.strip():
+                display_parts.append(record_text[:50])
+            
+            if drink.strip():
+                display_parts.append(f"🥤 {drink[:20]}")
+            
+            if not display_parts:
+                display_text = "📝 Empty record"
+            else:
+                display_text = " + ".join(display_parts)
+            
+            text += f"{i}. 🕐 {formatted_time} - {display_text}\n"
         
         # Build pagination buttons
         builder = InlineKeyboardBuilder()
@@ -159,9 +175,25 @@ class _FoodDiaryTool(Tool):
         # Add record buttons
         for i, record in enumerate(display_records, start=start_idx):
             record_time = record.get('datetime_utc', record.get('timestamp', ''))
-            record_text = record.get('record', record.get('text', ''))
+            record_text = record.get('record', record.get('text', '')) or ''
+            drink = record.get('drink', '') or ''
             formatted_time = self._format_time_for_user(record_time, user_timezone)
-            button_text = f"{i+1}. 🕐 {formatted_time} - {record_text[:30]}"
+            
+            # Build display text based on what's available
+            display_parts = []
+            
+            if record_text.strip():
+                display_parts.append(record_text[:30])
+            
+            if drink.strip():
+                display_parts.append("🥤")
+            
+            if not display_parts:
+                display_text = "📝 Empty"
+            else:
+                display_text = " + ".join(display_parts)
+            
+            button_text = f"{i+1}. 🕐 {formatted_time} - {display_text}"
             builder.add(InlineKeyboardButton(
                 text=button_text,
                 callback_data=f"fd_select_record_{record['id']}"
@@ -667,22 +699,32 @@ class _FoodDiaryTool(Tool):
         
         # Format record display
         record_time = record.get('datetime_utc', record.get('timestamp', ''))
-        record_text = record.get('record', record.get('text', ''))
+        record_text = record.get('record', record.get('text', '')) or ''
         hunger_before = record.get('hunger_before')
         hunger_after = record.get('hunger_after')
-        drink = record.get('drink')
+        drink = record.get('drink', '') or ''
         formatted_time = self._format_time_for_user(record_time, user_timezone)
         
         text = "📝 Record Details\n\n"
         text += f"🕐 Time: {formatted_time}\n"
-        text += f"🍽️ Food: {record_text}\n"
         
+        # Show food if available
+        if record_text.strip():
+            text += f"🍽️ Food: {record_text}\n"
+        
+        # Show drink if available
+        if drink.strip():
+            text += f"🥤 Drink: {drink}\n"
+        
+        # Show hunger levels if available
         if hunger_before is not None:
             text += f"🍽️ Hunger Before: {hunger_before}/10\n"
         if hunger_after is not None:
             text += f"🍽️ Hunger After: {hunger_after}/10\n"
-        if drink:
-            text += f"🥤 Drink: {drink}\n"
+        
+        # If neither food nor drink, show a note
+        if not record_text.strip() and not drink.strip():
+            text += "\n📝 This record contains only hunger levels."
         
         builder = InlineKeyboardBuilder()
         
