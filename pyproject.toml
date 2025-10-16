@@ -13,5 +13,8 @@ dependencies = [
 [project.scripts]
 pmd_clever_note = "pmd_clever_note.__main__:main"
 
+[tool.setuptools.packages.find]
+include = ["pmd_clever_note*"]
+
 [tool.black]
 line-length = 100
