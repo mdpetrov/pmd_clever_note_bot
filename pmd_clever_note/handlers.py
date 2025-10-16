@@ -241,6 +241,44 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
             else:
                 await callback.message.edit_text(text)
         await callback.answer()
+    
+    # Skip text during edit
+    @router.callback_query(lambda c: c.data == "fd_skip_text")
+    async def food_diary_skip_text(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        # Move to hunger before selection
+        state = food_diary_tool._creation_states.get(user_id)
+        if state:
+            food_diary_tool._creation_states[user_id] = RecordCreationState(
+                user_id=user_id,
+                step="hunger_before",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=None,
+                hunger_after=None,
+                editing_record_id=state.editing_record_id
+            )
+        
+        # Show hunger before selection
+        text, keyboard = await food_diary_tool._show_hunger_scale(user_id, "before", locale)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+    
+    # Back during edit
+    @router.callback_query(lambda c: c.data == "fd_edit_back")
+    async def food_diary_edit_back(callback: types.CallbackQuery) -> None:
+        locale = _get_locale_from_callback(callback, default_locale)
+        user_id = callback.from_user.id if callback.from_user else 0
+        
+        # Clear the creation state and return to edit menu
+        if user_id in food_diary_tool._creation_states:
+            del food_diary_tool._creation_states[user_id]
+        
+        text, keyboard = await food_diary_tool._edit_records_menu(user_id, locale, offset=0)
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
 
 
 def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, default_locale: str) -> None:
