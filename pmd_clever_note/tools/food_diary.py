@@ -490,11 +490,12 @@ class _FoodDiaryTool(Tool):
         else:  # after
             new_state = RecordCreationState(
                 user_id=user_id,
-                step="drink",
+                step="complete",
                 datetime_utc=state.datetime_utc,
                 record_text=state.record_text,
                 hunger_before=state.hunger_before,
                 hunger_after=hunger_value,
+                drink=state.drink,
                 editing_record_id=state.editing_record_id
             )
         
@@ -504,8 +505,8 @@ class _FoodDiaryTool(Tool):
             # Move to hunger after
             return await self._show_hunger_scale(user_id, "after", locale)
         else:
-            # Move to drink input
-            return await self._show_drink_input(user_id, locale)
+            # Save the complete record
+            return await self._save_complete_record(user_id, locale)
 
     async def _show_drink_input(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Show drink input prompt."""
