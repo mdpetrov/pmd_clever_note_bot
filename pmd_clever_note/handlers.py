@@ -208,7 +208,8 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
                 datetime_utc=state.datetime_utc,
                 record_text=state.record_text,
                 hunger_before=state.hunger_before,
-                hunger_after=state.hunger_after
+                hunger_after=state.hunger_after,
+                editing_record_id=state.editing_record_id
             )
         
         text = f"📝 Edit Food Description\n\nCurrent: {state.record_text if state else ''}\n\nType new description or skip:"

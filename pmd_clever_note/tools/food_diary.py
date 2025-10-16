@@ -30,6 +30,7 @@ class RecordCreationState:
     record_text: Optional[str] = None
     hunger_before: Optional[int] = None
     hunger_after: Optional[int] = None
+    editing_record_id: Optional[str] = None  # ID of record being edited, None for new records
 
 
 @dataclass(frozen=True)
@@ -189,7 +190,7 @@ class _FoodDiaryTool(Tool):
 
     async def handle_time_selection(self, user_id: int, time_option: str, locale: str) -> tuple[str, InlineKeyboardMarkup | None]:
         """Handle datetime selection and move to text input."""
-        now = datetime.utcnow()
+        now = datetime.now(datetime.UTC)
         
         if time_option == "now":
             selected_time = now
@@ -212,7 +213,8 @@ class _FoodDiaryTool(Tool):
         self._creation_states[user_id] = RecordCreationState(
             user_id=user_id,
             step="text",
-            datetime_utc=selected_time.isoformat() + "Z"
+            datetime_utc=selected_time.isoformat() + "Z",
+            editing_record_id=None
         )
         
         text = f"📝 What did you eat?\n\n⏰ Time: {selected_time.strftime('%Y-%m-%d %H:%M')}\n\nType your food record (any text):"
@@ -227,7 +229,8 @@ class _FoodDiaryTool(Tool):
         # Set state to wait for custom time input
         self._creation_states[user_id] = RecordCreationState(
             user_id=user_id,
-            step="custom_time"
+            step="custom_time",
+            editing_record_id=None
         )
         
         text = "🕐 Custom Time\n\nType the date and time in format:\nYYYY-MM-DD HH:MM\n\nExample: 2024-01-15 14:30"
@@ -247,7 +250,8 @@ class _FoodDiaryTool(Tool):
             self._creation_states[user_id] = RecordCreationState(
                 user_id=user_id,
                 step="text",
-                datetime_utc=selected_time.isoformat() + "Z"
+                datetime_utc=selected_time.isoformat() + "Z",
+                editing_record_id=None
             )
             
             text = f"📝 What did you eat?\n\n⏰ Time: {selected_time.strftime('%Y-%m-%d %H:%M')}\n\nType your food record (any text):"
@@ -284,7 +288,8 @@ class _FoodDiaryTool(Tool):
             datetime_utc=state.datetime_utc,
             record_text=text.strip(),
             hunger_before=None,
-            hunger_after=None
+            hunger_after=None,
+            editing_record_id=state.editing_record_id
         )
         
         # Show hunger before selection
@@ -346,7 +351,8 @@ class _FoodDiaryTool(Tool):
                 datetime_utc=state.datetime_utc,
                 record_text=state.record_text,
                 hunger_before=hunger_value,
-                hunger_after=None
+                hunger_after=None,
+                editing_record_id=state.editing_record_id
             )
         else:  # after
             new_state = RecordCreationState(
@@ -355,7 +361,8 @@ class _FoodDiaryTool(Tool):
                 datetime_utc=state.datetime_utc,
                 record_text=state.record_text,
                 hunger_before=state.hunger_before,
-                hunger_after=hunger_value
+                hunger_after=hunger_value,
+                editing_record_id=state.editing_record_id
             )
         
         self._creation_states[user_id] = new_state
@@ -373,18 +380,43 @@ class _FoodDiaryTool(Tool):
         if not state:
             return "❌ Error: No active record creation.", None
         
-        # Save the record
-        record_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        record = {
-            "id": record_id,
-            "datetime_utc": state.datetime_utc,
-            "record": state.record_text,
-            "hunger_before": state.hunger_before,
-            "hunger_after": state.hunger_after,
-            "picture": None
-        }
+        is_editing = state.editing_record_id is not None
         
-        await self.storage.write_jsonl(user_id, "food_diary/records.jsonl", [record])
+        if is_editing:
+            # Update existing record
+            records = await self._get_records(user_id)
+            record_index = next((i for i, r in enumerate(records) if r['id'] == state.editing_record_id), -1)
+            
+            if record_index == -1:
+                return "❌ Error: Record to edit not found.", None
+            
+            # Update the existing record
+            records[record_index].update({
+                "datetime_utc": state.datetime_utc,
+                "record": state.record_text,
+                "hunger_before": state.hunger_before,
+                "hunger_after": state.hunger_after
+            })
+            
+            # Clear the file and rewrite all records
+            await self.storage.write_text(user_id, "food_diary/records.jsonl", "")  # Clear file
+            await self.storage.write_jsonl(user_id, "food_diary/records.jsonl", records)
+            
+            action_text = "Record Updated Successfully!"
+        else:
+            # Create new record
+            record_id = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+            record = {
+                "id": record_id,
+                "datetime_utc": state.datetime_utc,
+                "record": state.record_text,
+                "hunger_before": state.hunger_before,
+                "hunger_after": state.hunger_after,
+                "picture": None
+            }
+            
+            await self.storage.write_jsonl(user_id, "food_diary/records.jsonl", [record])
+            action_text = "Record Added Successfully!"
         
         # Clear the creation state
         if user_id in self._creation_states:
@@ -399,7 +431,7 @@ class _FoodDiaryTool(Tool):
         elif state.hunger_after is not None:
             hunger_info = f"\n🍽️ Hunger After: {state.hunger_after}/10"
         
-        text = f"✅ Record Added Successfully!\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {state.datetime_utc[:16]}\n\nWhat would you like to do next?"
+        text = f"✅ {action_text}\n\n📝 {state.record_text}{hunger_info}\n\n⏰ {state.datetime_utc[:16]}\n\nWhat would you like to do next?"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="➕ Add Another Record", callback_data="fd_add"))
@@ -435,10 +467,10 @@ class _FoodDiaryTool(Tool):
 
     async def add_record(self, user_id: int, text: str, photo_id: str | None = None) -> str:
         """Legacy method - kept for compatibility."""
-        record_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        record_id = datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
         record = {
             "id": record_id,
-            "datetime_utc": datetime.utcnow().isoformat() + "Z",
+            "datetime_utc": datetime.now(datetime.UTC).isoformat() + "Z",
             "record": text,
             "hunger_before": None,
             "hunger_after": None,
@@ -541,7 +573,8 @@ class _FoodDiaryTool(Tool):
             datetime_utc=record.get('datetime_utc', record.get('timestamp', '')),
             record_text=record.get('record', record.get('text', '')),
             hunger_before=record.get('hunger_before'),
-            hunger_after=record.get('hunger_after')
+            hunger_after=record.get('hunger_after'),
+            editing_record_id=record_id
         )
         
         text = "✏️ Edit Record\n\n📅 Change the time? Select new time or skip:"

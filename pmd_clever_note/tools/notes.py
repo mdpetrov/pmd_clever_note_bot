@@ -21,7 +21,7 @@ class _NotesTool(Tool):
         if command == "note_add":
             if not args.strip():
                 return "Usage: /note_add <text>"
-            item: dict[str, Any] = {"ts": datetime.utcnow().isoformat() + "Z", "text": args.strip()}
+            item: dict[str, Any] = {"ts": datetime.now(datetime.UTC).isoformat() + "Z", "text": args.strip()}
             await self.storage.write_jsonl(user_id, "notes/notes.jsonl", [item])
             return t("notes_saved", locale)
         if command == "note_list":
