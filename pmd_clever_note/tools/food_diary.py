@@ -109,7 +109,7 @@ class _FoodDiaryTool(Tool):
         
         # Action buttons
         builder.add(InlineKeyboardButton(text="➕ Add Record", callback_data="fd_add"))
-        builder.add(InlineKeyboardButton(text="✏️ Edit Records", callback_data="fd_edit"))
+        builder.add(InlineKeyboardButton(text="📄 Copy Records", callback_data="fd_edit"))
         builder.add(InlineKeyboardButton(text="🔙 Back to Main", callback_data="fd_main"))
         
         builder.adjust(2, 2, 1)  # 2 buttons per row for pagination, then 2 for actions, then 1 for back
@@ -137,7 +137,7 @@ class _FoodDiaryTool(Tool):
         records = await self._get_records(user_id)
         
         if not records:
-            text = "📝 No records to edit."
+            text = "📝 No records to copy."
             builder = InlineKeyboardBuilder()
             builder.add(InlineKeyboardButton(text="🔙 Back to Records", callback_data="fd_records"))
             return text, builder.as_markup()
@@ -147,7 +147,7 @@ class _FoodDiaryTool(Tool):
         end_idx = min(offset + 5, len(records))
         display_records = records[start_idx:end_idx]
         
-        text = f"✏️ Edit Records ({start_idx + 1}-{end_idx} of {len(records)})\n\nSelect a record to edit:"
+        text = f"📄 Copy Records ({start_idx + 1}-{end_idx} of {len(records)})\n\nSelect a record to copy:"
         
         builder = InlineKeyboardBuilder()
         
@@ -475,7 +475,7 @@ class _FoodDiaryTool(Tool):
         builder = InlineKeyboardBuilder()
         
         # Action buttons
-        builder.add(InlineKeyboardButton(text="✏️ Edit Record", callback_data=f"fd_edit_record_{record_id}"))
+        builder.add(InlineKeyboardButton(text="📄 Copy Record", callback_data=f"fd_edit_record_{record_id}"))
         builder.add(InlineKeyboardButton(text="🗑️ Remove Record", callback_data=f"fd_remove_record_{record_id}"))
         
         # Navigation buttons
@@ -491,7 +491,7 @@ class _FoodDiaryTool(Tool):
             builder.add(InlineKeyboardButton(text="➡️ Next Record", callback_data=f"fd_select_record_{next_record['id']}"))
         
         # Back button
-        builder.add(InlineKeyboardButton(text="🔙 Back to Edit Menu", callback_data="fd_edit"))
+        builder.add(InlineKeyboardButton(text="🔙 Back to Copy Menu", callback_data="fd_edit"))
         
         builder.adjust(2, 2, 1)  # 2 per row for actions, 2 for navigation, 1 for back
         return text, builder.as_markup()
@@ -544,7 +544,7 @@ class _FoodDiaryTool(Tool):
             hunger_after=record.get('hunger_after')
         )
         
-        text = "✏️ Edit Record\n\n📅 Change the time? Select new time or skip:"
+        text = "📄 Copy Record\n\n📅 Change the time? Select new time or skip:"
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="🕐 Now", callback_data="fd_time_now"))
