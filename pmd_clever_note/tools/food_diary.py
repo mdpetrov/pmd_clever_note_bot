@@ -289,8 +289,11 @@ class _FoodDiaryTool(Tool):
             else:
                 # Default to UTC if no timezone set
                 return utc_dt.strftime('%Y-%m-%d %H:%M UTC')
-        except Exception:
-            # Fallback to original string if conversion fails
+        except Exception as e:
+            # Log warning and fallback to original string if conversion fails
+            import logging
+            logger = logging.getLogger("pmd_clever_note")
+            logger.warning(f"Timezone conversion failed for '{utc_time_str}' with timezone '{user_timezone}': {e}")
             return utc_time_str[:16]
 
     async def handle_time_selection(self, user_id: int, time_option: str, locale: str) -> tuple[str, InlineKeyboardMarkup | None]:
