@@ -112,10 +112,17 @@ class _FoodDiaryTool(Tool):
             if drink.strip():
                 display_parts.append(f"🥤 {drink[:20]}")
             
+            hunger_parts = ['😋']
             if hunger_before > 0:
-                display_parts.append(f"🤤 Hunger Before: {hunger_before}/10")
+                hunger_parts.append(f"{hunger_before}/10")
+            else:
+                hunger_parts.append("")
+            hunger_parts.append("→")
             if hunger_after > 0:
-                display_parts.append(f"😋 Hunger After: {hunger_after}/10")
+                hunger_parts.append(f" {hunger_after}/10")
+            else:
+                hunger_parts.append("")
+            display_parts.append(" ".join(hunger_parts))
             
             if not display_parts:
                 display_text = "📝 Empty record"
