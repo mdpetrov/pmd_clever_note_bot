@@ -96,11 +96,11 @@ class _FoodDiaryTool(Tool):
         text = f"📝 Food Records ({start_idx + 1}-{end_idx} of {len(records)})\n\n"
         for i, record in enumerate(display_records, start=start_idx + 1):
             # Use new record structure
-            record_text = record.get('record', '')
-            record_time = record.get('datetime_utc', '')
-            hunger_before = record.get('hunger_before', -1)
-            hunger_after = record.get('hunger_after', -1)
-            drink = record.get('drink', '')
+            record_text = record.get('record', '') or ''
+            record_time = record.get('datetime_utc', '') or ''
+            hunger_before = record.get('hunger_before', -1) or -1
+            hunger_after = record.get('hunger_after', -1) or -1
+            drink = record.get('drink', '') or ''
             formatted_time = self._format_time_for_user(record_time, user_timezone)
             
             # Build display text based on what's available
