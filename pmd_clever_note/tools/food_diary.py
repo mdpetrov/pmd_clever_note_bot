@@ -95,9 +95,11 @@ class _FoodDiaryTool(Tool):
         text = f"📝 Food Records ({start_idx + 1}-{end_idx} of {len(records)})\n\n"
         for i, record in enumerate(display_records, start=start_idx + 1):
             # Use new record structure
-            record_text = record.get('record', record.get('text', '')) or ''
-            record_time = record.get('datetime_utc', record.get('timestamp', ''))
-            drink = record.get('drink', '') or ''
+            record_text = record.get('record', '')
+            record_time = record.get('datetime_utc', '')
+            hunger_before = record.get('hunger_before', '')
+            hunger_after = record.get('hunger_after', '')
+            drink = record.get('drink', '')
             formatted_time = self._format_time_for_user(record_time, user_timezone)
             
             # Build display text based on what's available
@@ -108,6 +110,11 @@ class _FoodDiaryTool(Tool):
             
             if drink.strip():
                 display_parts.append(f"🥤 {drink[:20]}")
+            
+            if hunger_before.strip():
+                display_parts.append(f"🤤 Hunger Before: {hunger_before}/10")
+            if hunger_after.strip():
+                display_parts.append(f"😋 Hunger After: {hunger_after}/10")
             
             if not display_parts:
                 display_text = "📝 Empty record"
@@ -141,6 +148,7 @@ class _FoodDiaryTool(Tool):
         
         builder = InlineKeyboardBuilder()
         builder.add(InlineKeyboardButton(text="🕐 Now", callback_data="fd_time_now"))
+        builder.add(InlineKeyboardButton(text="🕐 15 min ago", callback_data="fd_time_15m"))
         builder.add(InlineKeyboardButton(text="🕐 30 min ago", callback_data="fd_time_30m"))
         builder.add(InlineKeyboardButton(text="🕐 1 hour ago", callback_data="fd_time_1h"))
         builder.add(InlineKeyboardButton(text="🕐 2 hours ago", callback_data="fd_time_2h"))
@@ -337,6 +345,8 @@ class _FoodDiaryTool(Tool):
         
         if time_option == "now":
             selected_time = now
+        elif time_option == "15m":
+            selected_time = now - timedelta(minutes=15)
         elif time_option == "30m":
             selected_time = now - timedelta(minutes=30)
         elif time_option == "1h":
@@ -365,7 +375,7 @@ class _FoodDiaryTool(Tool):
         text = f"📝 What did you eat?\n\n⏰ Time: {formatted_time}\n\nType your food record (any text):"
         
         builder = InlineKeyboardBuilder()
-        builder.add(InlineKeyboardButton(text="⏭️ Skip Text", callback_data="fd_skip_text"))
+        builder.add(InlineKeyboardButton(text="⏭️ Skip Food", callback_data="fd_skip_text"))
         builder.add(InlineKeyboardButton(text="❌ Cancel", callback_data="fd_cancel_add"))
         builder.adjust(1)
         
