@@ -98,8 +98,8 @@ class _FoodDiaryTool(Tool):
             # Use new record structure
             record_text = record.get('record', '')
             record_time = record.get('datetime_utc', '')
-            hunger_before = record.get('hunger_before', '')
-            hunger_after = record.get('hunger_after', '')
+            hunger_before = record.get('hunger_before', -1)
+            hunger_after = record.get('hunger_after', -1)
             drink = record.get('drink', '')
             formatted_time = self._format_time_for_user(record_time, user_timezone)
             
@@ -112,9 +112,9 @@ class _FoodDiaryTool(Tool):
             if drink.strip():
                 display_parts.append(f"🥤 {drink[:20]}")
             
-            if hunger_before.strip():
+            if hunger_before > 0:
                 display_parts.append(f"🤤 Hunger Before: {hunger_before}/10")
-            if hunger_after.strip():
+            if hunger_after > 0:
                 display_parts.append(f"😋 Hunger After: {hunger_after}/10")
             
             if not display_parts:
