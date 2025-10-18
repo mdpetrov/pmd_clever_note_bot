@@ -235,7 +235,7 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         await callback.message.edit_text(text, reply_markup=builder.as_markup())
         await callback.answer()
     
-    # Hunger selection handlers
+    # Hunger selection handlers - now using custom keyboard instead of inline buttons
     @router.callback_query(lambda c: c.data and c.data.startswith("fd_hunger_"))
     async def food_diary_hunger_selection(callback: types.CallbackQuery) -> None:
         locale = _get_locale_from_callback(callback, default_locale)
@@ -248,13 +248,14 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
             
             if level == "back":
                 text, keyboard = await food_diary_tool.handle_hunger_back(user_id, locale)
+                if keyboard:
+                    await callback.message.edit_text(text, reply_markup=keyboard)
+                else:
+                    await callback.message.edit_text(text)
             else:
-                text, keyboard = await food_diary_tool.handle_hunger_selection(user_id, hunger_type, level, locale)
-            
-            if keyboard:
+                # Show custom keyboard for hunger selection
+                text, keyboard = await food_diary_tool._show_hunger_scale(user_id, hunger_type, locale)
                 await callback.message.edit_text(text, reply_markup=keyboard)
-            else:
-                await callback.message.edit_text(text)
         await callback.answer()
     
     # Skip text during edit
@@ -310,7 +311,6 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
     # Back to text input
     @router.callback_query(lambda c: c.data == "fd_text_back")
     async def food_diary_text_back(callback: types.CallbackQuery) -> None:
-        locale = _get_locale_from_callback(callback, default_locale)
         user_id = callback.from_user.id if callback.from_user else 0
         
         # Move back to text input
@@ -414,6 +414,13 @@ def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, defa
             elif state.step == "drink":
                 # Handle drink input
                 result_text, keyboard = await food_diary_tool.handle_drink_input(user_id, text, locale)
+                if keyboard:
+                    await message.answer(result_text, reply_markup=keyboard)
+                else:
+                    await message.answer(result_text)
+            elif state.step in ["hunger_before_input", "hunger_after_input"]:
+                # Handle hunger level input
+                result_text, keyboard = await food_diary_tool.handle_hunger_text_input(user_id, text, locale)
                 if keyboard:
                     await message.answer(result_text, reply_markup=keyboard)
                 else:

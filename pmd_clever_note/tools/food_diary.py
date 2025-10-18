@@ -2,9 +2,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Dict, Optional
+import re
 
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 
 from ..storage import UserStorage
 from ..i18n import t
@@ -469,8 +470,8 @@ class _FoodDiaryTool(Tool):
         # Show drink input
         return await self._show_drink_input(user_id, locale)
 
-    async def _show_hunger_scale(self, user_id: int, hunger_type: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
-        """Show 10-level hunger scale with buttons."""
+    async def _show_hunger_scale(self, user_id: int, hunger_type: str, locale: str) -> tuple[str, ReplyKeyboardMarkup]:
+        """Show 10-level hunger scale with custom keyboard."""
         hunger_labels = {
             1: "😵 1 - Extremely hungry",
             2: "😫 2 - Very hungry", 
@@ -486,23 +487,100 @@ class _FoodDiaryTool(Tool):
         
         step_name = "before" if hunger_type == "before" else "after"
         step_emoji = "🍽️" if hunger_type == "before" else "😋"
-        text = f"{step_emoji} Hunger Level {step_name.title()}\n\nHow hungry were you {step_name} eating?\n\nSelect your hunger level:"
+        text = f"{step_emoji} Hunger Level {step_name.title()}\n\nHow hungry were you {step_name} eating?\n\nTap a button below or type the number:"
         
-        builder = InlineKeyboardBuilder()
+        builder = ReplyKeyboardBuilder()
         
-        # Add hunger level buttons (2 per row)
+        # Add hunger level buttons with descriptions (1 per row for better readability)
         for level in range(1, 11):
-            builder.add(InlineKeyboardButton(
-                text=hunger_labels[level],
-                callback_data=f"fd_hunger_{hunger_type}_{level}"
-            ))
+            builder.add(KeyboardButton(text=hunger_labels[level]))
         
-        # Add Skip and Back buttons
-        builder.add(InlineKeyboardButton(text="⏭️ Skip", callback_data=f"fd_hunger_{hunger_type}_skip"))
-        builder.add(InlineKeyboardButton(text="🔙 Back", callback_data="fd_hunger_back"))
+        # Add Skip button
+        builder.add(KeyboardButton(text="⏭️ Skip"))
         
-        builder.adjust(2, 2, 2, 2, 2, 1, 1)  # 2 per row for hunger levels, then 1 each for skip/back
+        builder.adjust(1)  # 1 per row for better readability with descriptions
+        
+        # Update the state to indicate we're waiting for hunger text input
+        state = self._creation_states.get(user_id)
+        if state:
+            new_step = f"hunger_{hunger_type}_input"
+            new_state = RecordCreationState(
+                user_id=user_id,
+                step=new_step,
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=state.hunger_before,
+                hunger_after=state.hunger_after,
+                drink=state.drink,
+                editing_record_id=state.editing_record_id
+            )
+            self._creation_states[user_id] = new_state
+        
         return text, builder.as_markup()
+
+    async def handle_hunger_text_input(self, user_id: int, text: str, locale: str) -> tuple[str, ReplyKeyboardMarkup]:
+        """Handle hunger level text input from custom keyboard."""
+        state = self._creation_states.get(user_id)
+        if not state:
+            return "❌ Error: No active record creation.", None
+        
+        # Determine hunger type from step
+        if state.step == "hunger_before_input":
+            hunger_type = "before"
+        elif state.step == "hunger_after_input":
+            hunger_type = "after"
+        else:
+            return "❌ Error: Invalid state for hunger input.", None
+        
+        # Process the input
+        if text.lower() in ["skip", "s", "⏭️ skip"]:
+            hunger_value = None
+        else:
+            try:
+                # Extract number from button text (e.g., "😵 1 - Extremely hungry" -> "1")
+                number_match = re.search(r'^(\d+)', text.strip())
+                if number_match:
+                    hunger_value = int(number_match.group(1))
+                else:
+                    # Fallback: try to parse the entire text as a number
+                    hunger_value = int(text.strip())
+                
+                if hunger_value < 1 or hunger_value > 10:
+                    return f"❌ Please select a number between 1 and 10, or tap 'Skip'.\n\nCurrent step: Hunger {hunger_type.title()}", None
+            except ValueError:
+                return f"❌ Please select a valid hunger level button or type a number (1-10).\n\nCurrent step: Hunger {hunger_type.title()}", None
+        
+        # Update state with hunger level
+        if hunger_type == "before":
+            new_state = RecordCreationState(
+                user_id=user_id,
+                step="hunger_after",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=hunger_value,
+                hunger_after=None,
+                drink=state.drink,
+                editing_record_id=state.editing_record_id
+            )
+        else:  # after
+            new_state = RecordCreationState(
+                user_id=user_id,
+                step="complete",
+                datetime_utc=state.datetime_utc,
+                record_text=state.record_text,
+                hunger_before=state.hunger_before,
+                hunger_after=hunger_value,
+                drink=state.drink,
+                editing_record_id=state.editing_record_id
+            )
+        
+        self._creation_states[user_id] = new_state
+        
+        # Show next step or complete
+        if hunger_type == "before":
+            return await self._show_hunger_scale(user_id, "after", locale)
+        else:
+            return await self._save_complete_record(user_id, locale)
 
     async def handle_hunger_selection(self, user_id: int, hunger_type: str, level: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Handle hunger level selection."""
