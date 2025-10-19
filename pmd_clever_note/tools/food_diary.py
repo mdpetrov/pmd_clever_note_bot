@@ -545,7 +545,8 @@ class _FoodDiaryTool(Tool):
         else:
             try:
                 # Extract number from button text (e.g., "😵 1 - Extremely hungry" -> "1")
-                number_match = re.search(r'^(\d+)', text.strip())
+                # Look for number after emoji and optional space
+                number_match = re.search(r'[^\d]*(\d+)', text.strip())
                 if number_match:
                     hunger_value = int(number_match.group(1))
                 else:
