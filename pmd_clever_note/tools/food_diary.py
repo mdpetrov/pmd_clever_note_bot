@@ -251,7 +251,7 @@ class _FoodDiaryTool(Tool):
         try:
             timezone_str = await self.storage.read_text(user_id, "food_diary/timezone.txt")
             return timezone_str.strip() if timezone_str.strip() else None
-        except:
+        except Exception:
             return None
     
     async def _set_user_timezone(self, user_id: int, timezone_str: str) -> None:
@@ -525,7 +525,7 @@ class _FoodDiaryTool(Tool):
         
         return text, builder.as_markup()
 
-    async def handle_hunger_text_input(self, user_id: int, text: str, locale: str) -> tuple[str, ReplyKeyboardMarkup]:
+    async def handle_hunger_text_input(self, user_id: int, text: str, locale: str) -> tuple[str, ReplyKeyboardMarkup | InlineKeyboardMarkup | None]:
         """Handle hunger level text input from custom keyboard."""
         state = self._creation_states.get(user_id)
         if not state:
@@ -748,7 +748,7 @@ class _FoodDiaryTool(Tool):
         
         return text, builder.as_markup()
 
-    async def handle_hunger_back(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup]:
+    async def handle_hunger_back(self, user_id: int, locale: str) -> tuple[str, InlineKeyboardMarkup | ReplyKeyboardMarkup | None]:
         """Handle back navigation from hunger selection."""
         state = self._creation_states.get(user_id)
         if not state:

@@ -249,13 +249,20 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
             if level == "back":
                 text, keyboard = await food_diary_tool.handle_hunger_back(user_id, locale)
                 if keyboard:
-                    await callback.message.edit_text(text, reply_markup=keyboard)
+                    # Check if it's a ReplyKeyboardMarkup (custom keyboard) or InlineKeyboardMarkup
+                    from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup
+                    if isinstance(keyboard, ReplyKeyboardMarkup):
+                        await callback.message.answer(text, reply_markup=keyboard)
+                    elif isinstance(keyboard, InlineKeyboardMarkup):
+                        await callback.message.edit_text(text, reply_markup=keyboard)
+                    else:
+                        await callback.message.edit_text(text)
                 else:
                     await callback.message.edit_text(text)
             else:
-                # Show custom keyboard for hunger selection
+                # Show custom keyboard for hunger selection - use answer instead of edit_text for ReplyKeyboardMarkup
                 text, keyboard = await food_diary_tool._show_hunger_scale(user_id, hunger_type, locale)
-                await callback.message.edit_text(text, reply_markup=keyboard)
+                await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
     
     # Skip text during edit
@@ -303,9 +310,9 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
                 editing_record_id=state.editing_record_id
             )
         
-        # Show hunger before selection
+        # Show hunger before selection - use answer instead of edit_text for ReplyKeyboardMarkup
         text, keyboard = await food_diary_tool._show_hunger_scale(user_id, "before", locale)
-        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.message.answer(text, reply_markup=keyboard)
         await callback.answer()
     
     # Back to text input
@@ -422,7 +429,14 @@ def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, defa
                 # Handle hunger level input
                 result_text, keyboard = await food_diary_tool.handle_hunger_text_input(user_id, text, locale)
                 if keyboard:
-                    await message.answer(result_text, reply_markup=keyboard)
+                    # Check if it's a ReplyKeyboardMarkup (custom keyboard) or InlineKeyboardMarkup
+                    from aiogram.types import ReplyKeyboardMarkup, InlineKeyboardMarkup
+                    if isinstance(keyboard, ReplyKeyboardMarkup):
+                        await message.answer(result_text, reply_markup=keyboard)
+                    elif isinstance(keyboard, InlineKeyboardMarkup):
+                        await message.answer(result_text, reply_markup=keyboard)
+                    else:
+                        await message.answer(result_text)
                 else:
                     await message.answer(result_text)
         else:
