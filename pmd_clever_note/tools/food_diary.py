@@ -588,7 +588,9 @@ class _FoodDiaryTool(Tool):
         if hunger_type == "before":
             return await self._show_hunger_scale(user_id, "after", locale)
         else:
-            return await self._save_complete_record(user_id, locale)
+            # Remove custom keyboard when completing the record
+            text, keyboard = await self._save_complete_record(user_id, locale)
+            return text, keyboard
 
     async def handle_hunger_selection(self, user_id: int, hunger_type: str, level: str, locale: str) -> tuple[str, InlineKeyboardMarkup]:
         """Handle hunger level selection."""

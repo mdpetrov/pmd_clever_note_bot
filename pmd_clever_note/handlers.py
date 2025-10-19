@@ -143,6 +143,8 @@ def register_food_diary_callbacks(router: Router, food_diary_tool: Tool, default
         user_id = callback.from_user.id if callback.from_user else 0
         text, keyboard = await food_diary_tool.cancel_record_creation(user_id, locale)
         await callback.message.edit_text(text, reply_markup=keyboard)
+        # Also send a message to remove any custom keyboard
+        await callback.message.answer("Record creation cancelled.", reply_markup=types.ReplyKeyboardRemove())
         await callback.answer()
     
     # Edit records pagination
@@ -412,19 +414,19 @@ def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, defa
                 else:
                     await message.answer(result_text)
             elif state.step == "text":
-                # This is the food record text
+                # This is the food record text - remove any existing custom keyboard
                 result_text, keyboard = await food_diary_tool.handle_text_input(user_id, text, locale)
                 if keyboard:
                     await message.answer(result_text, reply_markup=keyboard)
                 else:
-                    await message.answer(result_text)
+                    await message.answer(result_text, reply_markup=types.ReplyKeyboardRemove())
             elif state.step == "drink":
-                # Handle drink input
+                # Handle drink input - remove any existing custom keyboard
                 result_text, keyboard = await food_diary_tool.handle_drink_input(user_id, text, locale)
                 if keyboard:
                     await message.answer(result_text, reply_markup=keyboard)
                 else:
-                    await message.answer(result_text)
+                    await message.answer(result_text, reply_markup=types.ReplyKeyboardRemove())
             elif state.step in ["hunger_before_input", "hunger_after_input"]:
                 # Handle hunger level input
                 result_text, keyboard = await food_diary_tool.handle_hunger_text_input(user_id, text, locale)
@@ -438,10 +440,11 @@ def register_food_diary_text_handler(router: Router, food_diary_tool: Tool, defa
                     else:
                         await message.answer(result_text)
                 else:
-                    await message.answer(result_text)
+                    # No keyboard means we're done with hunger input, remove custom keyboard
+                    await message.answer(result_text, reply_markup=types.ReplyKeyboardRemove())
         else:
-            # Not in record creation mode, ignore the message
-            pass
+            # Not in record creation mode, remove any existing custom keyboard
+            await message.answer("Please use the menu buttons to interact with the bot.", reply_markup=types.ReplyKeyboardRemove())
 
 
 def _get_locale_from_callback(callback: types.CallbackQuery, default_locale: str) -> str:
